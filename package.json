@@ -1,0 +1,17 @@
+{
+  "name": "perplexity-export",
+  "version": "1.0.0",
+  "description": "Export all your Perplexity AI threads with one command",
+  "bin": {
+    "perplexity-export": "./cli.js"
+  },
+  "type": "module",
+  "license": "MIT",
+  "author": "Brian Cho",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/brianjhcho/perplexity-export"
+  },
+  "keywords": ["perplexity", "export", "ai", "backup", "threads", "conversations"],
+  "files": ["cli.js", "receiver.js", "browser.js", "README.md"]
+}
