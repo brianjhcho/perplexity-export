@@ -7,6 +7,24 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
   }
 });
 
+// The assistant answer is stored as a JSON-encoded step list in entry.text.
+function extractAnswer(entry) {
+  if (entry.answer && (entry.answer.text || entry.answer.answer)) return entry.answer.text || entry.answer.answer;
+  var raw = entry.text;
+  if (typeof raw !== 'string') return '';
+  var steps; try { steps = JSON.parse(raw); } catch (e) { return raw; }
+  if (!Array.isArray(steps)) return '';
+  var ans = '';
+  for (var s = 0; s < steps.length; s++) {
+    var c = steps[s].content || {}, cand = c.answer;
+    if (cand == null) continue;
+    if (typeof cand === 'string') { try { var p = JSON.parse(cand); cand = p.answer || p.text || cand; } catch (e) {} }
+    if (typeof cand === 'object') cand = cand.answer || cand.text || '';
+    if (cand) ans = cand; // last answer step is the final one
+  }
+  return ans;
+}
+
 async function runExport() {
   var BATCH = 10;
   var DELAY = 200;
@@ -39,8 +57,8 @@ async function runExport() {
         if (!Array.isArray(listData) || listData.length === 0) break;
         for (var k = 0; k < listData.length; k++) {
           var t = listData[k];
-          var s = t.slug || t.url_slug;
-          if (s) slugMap[s] = t.title || t.query || s;
+          var s = t.slug || t.url_slug || t.uuid;
+          if (s) slugMap[s] = t.title || t.query_str || t.query || s;
         }
         offset += 100;
         if (listData.length < 100) break;
@@ -113,16 +131,17 @@ async function runExport() {
 
         for (var e = 0; e < entries.length; e++) {
           var entry = entries[e];
-          var q = (entry.query && entry.query.text) || entry.query || '';
-          var a = (entry.answer && entry.answer.text) || (entry.answer && entry.answer.answer) || (typeof entry.answer === 'string' ? entry.answer : '') || entry.text || '';
-          if (q) messages.push({ sender: 'human', text: String(q), created_at: entry.created_at || '' });
-          if (a) messages.push({ sender: 'assistant', text: String(a), created_at: entry.created_at || '' });
+          var q = entry.query_str || (entry.query && entry.query.text) || entry.query || '';
+          var a = extractAnswer(entry);
+          var ts = entry.updated_datetime || entry.created_datetime || entry.created_at || '';
+          if (q) messages.push({ sender: 'human', text: String(q), created_at: ts });
+          if (a) messages.push({ sender: 'assistant', text: String(a), created_at: ts });
         }
 
         if (messages.length === 0) { failed++; continue; }
 
         allThreads.push({
-          title: data.title || allTitles[result.slug] || result.slug,
+          title: (data.thread_metadata && data.thread_metadata.title) || data.title || allTitles[result.slug] || result.slug,
           slug: result.slug,
           source: 'perplexity',
           url: 'https://www.perplexity.ai/search/' + result.slug,
